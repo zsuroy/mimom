@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Get commit info
+        id: commit_info
+        run: |
+          echo "COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          LDFLAGS="-s -w -X main.Version=${{ steps.get_version.outputs.VERSION }} -X main.Commit=${{ steps.commit_info.outputs.COMMIT }} -X main.Date=${{ steps.commit_info.outputs.DATE }}"
+
+          GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/mimom-darwin-amd64 ./cmd/mimom
+          GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/mimom-darwin-arm64 ./cmd/mimom
+          GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/mimom-linux-amd64 ./cmd/mimom
+          GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/mimom-linux-arm64 ./cmd/mimom
+          GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/mimom-windows-amd64.exe ./cmd/mimom
+
+          ls -lh dist/
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > sha256sum.txt
+          cat sha256sum.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/mimom-darwin-amd64
+            dist/mimom-darwin-arm64
+            dist/mimom-linux-amd64
+            dist/mimom-linux-arm64
+            dist/mimom-windows-amd64.exe
+            dist/sha256sum.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,39 @@
+server:
+  port: 12580
+  api_key: ""       # 代理自身的 API Key 鉴权，留空则不校验
+  timeout: 120      # 后端请求超时（秒）
+
+backends:
+  # MiMo OpenAI 兼容端点
+  mimo-openai:
+    base_url: "https://api.xiaomimimo.com/v1"
+    api_key: "sk-your-api-key-here"
+    models:
+      mimo-v2.5-pro: "mimo-v2.5-pro"
+      mimo-v2.5-omni: "mimo-v2.5-omni"
+
+  # MiMo Anthropic 兼容端点
+  mimo-anthropic:
+    base_url: "https://api.xiaomimimo.com/anthropic/v1"
+    type: "anthropic"
+    api_key: "sk-your-api-key-here"
+    models:
+      mimo-claude: "mimo-v2.5-pro"
+      mimo-claude-omni: "mimo-v2.5-omni"
+
+  # 可选：Anthropic Claude
+  # claude:
+  #   type: "anthropic"
+  #   base_url: "https://api.anthropic.com/v1"
+  #   api_key: "sk-ant-xxx"
+  #   models:
+  #     claude-sonnet: "claude-sonnet-4-20250514"
+  #     claude-opus: "claude-opus-4-20250514"
+
+  # 可选：DeepSeek
+  # deepseek:
+  #   base_url: "https://api.deepseek.com/v1"
+  #   api_key: "sk-your-deepseek-key"
+  #   models:
+  #     deepseek-v4-pro: "deepseek-v4-pro"
+  #     deepseek-v4-flash: "deepseek-v4-flash"

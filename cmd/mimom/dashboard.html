@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mimom dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0d12;--surface:#131920;--border:#1e2730;--text:#e6edf3;--muted:#7d8590;
+  --accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;
+  --surface2:#161b22;--surface3:#1c2128;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--surface)}
+.header h1{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+.header h1 span{color:var(--accent)}
+.header .meta{font-size:12px;color:var(--muted);display:flex;gap:16px}
+.header .dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px}
+.main{padding:20px 24px;max-width:1400px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.card.accent::after{background:var(--accent)}
+.card.green::after{background:var(--green)}
+.card.red::after{background:var(--red)}
+.card.yellow::after{background:var(--yellow)}
+.card.purple::after{background:var(--purple)}
+.card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.card .value{font-size:24px;font-weight:700;line-height:1}
+.card .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.charts{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:20px}
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+.chart-box h2{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.chart-wrap{position:relative;height:200px}
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+.section h2{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:5px 8px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface3)}
+.badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:500}
+.badge.s2{background:#0d4429;color:var(--green)}
+.badge.s4{background:#4d2d00;color:var(--yellow)}
+.badge.s5{background:#4d1010;color:var(--red)}
+.backend-item{padding:10px 12px;background:var(--surface2);border-radius:8px;margin-bottom:8px}
+.backend-item:last-child{margin-bottom:0}
+.backend-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.backend-name{font-weight:600;font-size:13px;color:var(--accent)}
+.backend-type{font-size:10px;color:var(--muted);background:var(--surface3);padding:1px 6px;border-radius:4px}
+.backend-url{color:var(--muted);font-size:11px;margin-bottom:6px}
+.model-tag{display:inline-block;background:var(--surface3);color:var(--text);padding:2px 8px;border-radius:10px;font-size:11px;margin:2px 4px 2px 0}
+.log-path{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-time{color:var(--muted);font-size:11px}
+@media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}.charts{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}}
+@media(max-width:600px){.cards{grid-template-columns:repeat(2,1fr)}.main{padding:12px}.header{padding:12px}}
+.fade-in{animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:.4}to{opacity:1}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>mimom</span> dashboard</h1>
+  <div class="meta">
+    <span><span class="dot"></span>live</span>
+    <span id="last-update"></span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="cards" id="cards"></div>
+
+  <div class="charts">
+    <div class="chart-box">
+      <h2>requests / sec (last 2 min)</h2>
+      <div class="chart-wrap"><canvas id="rpsChart"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <h2>latency (ms)</h2>
+      <div class="chart-wrap"><canvas id="latencyChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="section">
+      <h2>backends</h2>
+      <div id="backends"></div>
+    </div>
+    <div class="section">
+      <h2>recent requests</h2>
+      <div style="max-height:340px;overflow-y:auto">
+        <table>
+          <thead><tr><th>time</th><th>method</th><th>path</th><th>status</th><th>duration</th></tr></thead>
+          <tbody id="logs"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var rpsChart,latencyChart;
+var chartInited=false;
+
+function initCharts(){
+  var rpsCtx=document.getElementById('rpsChart').getContext('2d');
+  rpsChart=new Chart(rpsCtx,{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'rps',data:[],borderColor:'#58a6ff',backgroundColor:'rgba(88,166,255,.08)',borderWidth:1.5,fill:true,tension:.3,pointRadius:0},
+      {label:'errors',data:[],borderColor:'#f85149',backgroundColor:'rgba(248,81,73,.08)',borderWidth:1.5,fill:true,tension:.3,pointRadius:0}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{display:true,grid:{color:'#1e2730'},ticks:{color:'#7d8590',font:{size:10},maxTicksLimit:6}},
+        y:{beginAtZero:true,grid:{color:'#1e2730'},ticks:{color:'#7d8590',font:{size:10}}}
+      },
+      plugins:{legend:{display:false}},
+      animation:{duration:300}
+    }
+  });
+
+  var latCtx=document.getElementById('latencyChart').getContext('2d');
+  latencyChart=new Chart(latCtx,{
+    type:'bar',
+    data:{labels:[],datasets:[
+      {label:'avg ms',data:[],backgroundColor:'rgba(188,140,255,.5)',borderColor:'#bc8cff',borderWidth:1,borderRadius:3}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{display:true,grid:{color:'#1e2730'},ticks:{color:'#7d8590',font:{size:10},maxTicksLimit:6}},
+        y:{beginAtZero:true,grid:{color:'#1e2730'},ticks:{color:'#7d8590',font:{size:10}}}
+      },
+      plugins:{legend:{display:false}},
+      animation:{duration:300}
+    }
+  });
+  chartInited=true;
+}
+
+function fmtUptime(ns){
+  var s=Math.floor(ns/1e9);
+  var d=Math.floor(s/86400);s%=86400;
+  var h=Math.floor(s/3600);s%=3600;
+  var m=Math.floor(s/60);s%=60;
+  if(d>0)return d+'d '+h+'h '+m+'m';
+  if(h>0)return h+'h '+m+'m '+s+'s';
+  if(m>0)return m+'m '+s+'s';
+  return s+'s';
+}
+
+function fmtNum(n){return n>=1000?(n/1000).toFixed(1)+'k':n}
+
+function statusBadge(s){
+  var cls='s2';if(s>=500)cls='s5';else if(s>=400)cls='s4';
+  return '<span class="badge '+cls+'">'+s+'</span>';
+}
+
+function render(d){
+  var r=d.requests||{};
+  var c=d.cache||{};
+  var l=d.latency||{};
+  var total=r.total||0;
+  var succ=r.success||0;
+  var rate=total?Math.round(succ/total*100):100;
+  var errs=(r.client_err||0)+(r.server_err||0);
+  var hit=c.hits||0,miss=c.misses||0;
+  var cacheRate=(hit+miss)?Math.round(hit/(hit+miss)*100):0;
+
+  document.getElementById('cards').innerHTML=
+    '<div class="card accent"><div class="label">uptime</div><div class="value">'+fmtUptime(d.uptime_ns||0)+'</div></div>'+
+    '<div class="card"><div class="label">requests</div><div class="value">'+fmtNum(total)+'</div><div class="sub">'+(r.rps||0).toFixed(1)+' req/s</div></div>'+
+    '<div class="card green"><div class="label">success</div><div class="value">'+rate+'%</div><div class="sub">'+fmtNum(succ)+' ok</div></div>'+
+    '<div class="card red"><div class="label">errors</div><div class="value">'+errs+'</div><div class="sub">'+(r.client_err||0)+' 4xx / '+(r.server_err||0)+' 5xx</div></div>'+
+    '<div class="card purple"><div class="label">avg latency</div><div class="value">'+(l.avg_ms||0)+'ms</div><div class="sub">max '+(l.max_ms||0)+'ms</div></div>'+
+    '<div class="card yellow"><div class="label">cache</div><div class="value">'+cacheRate+'%</div><div class="sub">'+c.entries+' entries / '+(c.memory_kb||0)+' KB</div></div>';
+
+  // backends
+  var bhtml='';
+  (d.backends||[]).forEach(function(b){
+    var type=b.type?'<span class="backend-type">'+b.type+'</span>':'';
+    bhtml+='<div class="backend-item"><div class="backend-header"><span class="backend-name">'+b.name+'</span>'+type+'</div>';
+    bhtml+='<div class="backend-url">'+b.url+'</div>';
+    (b.models||[]).forEach(function(m){bhtml+='<span class="model-tag">'+m+'</span>'});
+    bhtml+='</div>';
+  });
+  document.getElementById('backends').innerHTML=bhtml||'<div style="color:var(--muted);font-size:13px">no backends</div>';
+
+  // logs
+  var lhtml='';
+  var logs=d.recent_logs||[];
+  for(var i=logs.length-1;i>=0;i--){
+    var g=logs[i];
+    var t=g.time?new Date(g.time).toLocaleTimeString():'';
+    lhtml+='<tr><td class="log-time">'+t+'</td><td>'+g.method+'</td><td class="log-path" title="'+g.path+'">'+g.path+'</td>';
+    lhtml+='<td>'+statusBadge(g.status)+'</td><td>'+g.duration+'</td></tr>';
+  }
+  document.getElementById('logs').innerHTML=lhtml||'<tr><td colspan="5" style="color:var(--muted)">no requests yet</td></tr>';
+
+  // charts
+  if(!chartInited)initCharts();
+  var ts=d.time_series||[];
+  var labels=[],rpsData=[],errData=[],latData=[];
+  ts.forEach(function(p){
+    var dt=new Date(p.t*1000);
+    labels.push(dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    rpsData.push(p.c||0);
+    errData.push(p.e||0);
+    latData.push(p.ms||0);
+  });
+  rpsChart.data.labels=labels;
+  rpsChart.data.datasets[0].data=rpsData;
+  rpsChart.data.datasets[1].data=errData;
+  rpsChart.update('none');
+
+  latencyChart.data.labels=labels;
+  latencyChart.data.datasets[0].data=latData;
+  latencyChart.update('none');
+
+  document.getElementById('last-update').textContent='updated '+new Date().toLocaleTimeString();
+}
+
+function poll(){
+  fetch('/dashboard/api').then(function(r){return r.json()}).then(render).catch(function(){});
+}
+poll();
+setInterval(poll,3000);
+</script>
+</body>
+</html>
