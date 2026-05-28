@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-var version = "0.1.0"
+var version = "0.1.1"
 
 func main() {
 	var (
@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	if *showVer {
-		fmt.Printf("mimom %s\n", version)
+		fmt.Printf("MiMom %s\n", version)
 		os.Exit(0)
 	}
 
@@ -54,7 +54,7 @@ func main() {
 }
 
 func printBanner(cfg *Config) {
-	fmt.Printf("mimom %s — MiMo API Proxy\n\n", version)
+	fmt.Printf("MiMom %s — MiMo API Proxy\n\n", version)
 	log.Printf("config: loaded %d backend(s)", len(cfg.Backends))
 	for name, b := range cfg.Backends {
 		models := make([]string, 0, len(b.Models))

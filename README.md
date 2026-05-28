@@ -1,10 +1,17 @@
-# mimom
+# MiMom
 
-> 多协议推理链缓存代理 — 让 MiMo 的 reasoning_content 在多轮会话中不再断裂
+> 多协议推理链缓存代理 — 让 XiaoMi MiMo 的 reasoning_content 在多轮会话中不再断裂
+>
+> Multi-protocol reasoning cache proxy for XiaoMi MiMo | OpenAI · Anthropic · Codex CLI
+>
 
 推理模型在多轮会话中要求历史 `reasoning_content` 完整回传，否则返回 **400 Bad Request**。但大多数 SDK 客户端会自动丢弃这些非标准字段。
 
-**mimom** 位于客户端与上游之间，自动缓存推理链（reasoning/thinking），在下一轮请求中注入回对应消息。支持三种协议入口，按后端类型自动选择对应协议。
+**MiMom** 位于客户端与上游之间，自动缓存推理链（reasoning/thinking），在下一轮请求中注入回对应消息。支持三种协议入口，按后端类型自动选择对应协议。
+
+## 演示
+
+![mimom dashboard demo](assets/demo.gif)
 
 ---
 
@@ -95,13 +102,119 @@ cp config.yaml config.local.yaml
 ```
 
 ```text
-mimom 0.1.0 — MiMo API Proxy
+MiMom 0.1.0 — MiMo API Proxy
 
 config: loaded 2 backend(s)
   [mimo-openai] https://token-plan-cn.xiaomimimo.com/v1 → [mimo-v2.5-pro mimo-v2.5-omni]
   [mimo-anthropic] https://token-plan-cn.xiaomimimo.com/anthropic/v1 → [mimo-claude mimo-claude-omni]
 auth: disabled (open access)
 listening on :12580
+```
+
+---
+
+## 使用说明
+
+### 作为 OpenAI 代理
+
+将 mimom 作为 OpenAI API 的透明代理，支持流式和非流式请求：
+
+```bash
+# 设置环境变量，让 OpenAI SDK 指向 mimom
+export OPENAI_BASE_URL=http://localhost:12580/v1
+export OPENAI_API_KEY=sk-xxx
+
+# 直接用 curl 测试
+curl http://localhost:12580/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-xxx" \
+  -d '{"model":"mimo-v2.5-pro","messages":[{"role":"user","content":"你好"}]}'
+```
+
+Python SDK 用法：
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:12580/v1", api_key="sk-xxx")
+resp = client.chat.completions.create(
+    model="mimo-v2.5-pro",
+    messages=[{"role": "user", "content": "你好"}]
+)
+print(resp.choices[0].message.content)
+```
+
+### 作为 Anthropic 代理
+
+对接 Claude Code 等使用 Anthropic Messages API 的客户端：
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:12580
+export ANTHROPIC_API_KEY=sk-ant-xxx
+
+curl http://localhost:12580/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: sk-ant-xxx" \
+  -d '{"model":"claude-sonnet","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'
+```
+
+### 作为 Codex CLI 代理
+
+Codex CLI 使用 Responses API，mimom 自动将其翻译为 Chat Completions 协议：
+
+```bash
+export OPENAI_BASE_URL=http://localhost:12580/v1
+export OPENAI_API_KEY=sk-xxx
+
+# 直接使用 codex CLI
+codex --model mimo-v2.5-pro "写一个 hello world"
+```
+
+### Dashboard 访问
+
+启动后浏览器打开：
+
+```text
+http://localhost:12580/dashboard
+```
+
+Dashboard 提供以下功能：
+
+- **实时统计**：请求数、成功率、RPS、缓存命中率
+- **请求/秒图表**：最近 2 分钟的 QPS 折线图
+- **延迟分布**：各后端响应时间柱状图
+- **后端状态**：在线状态、模型映射关系
+- **请求日志**：最近 100 条请求详情，支持筛选
+
+### 鉴权配置
+
+```yaml
+server:
+  api_key: "your-secret-key"  # 留空则不校验
+```
+
+客户端请求时带上对应协议的鉴权头：
+
+```bash
+# OpenAI 协议
+-H "Authorization: Bearer your-secret-key"
+
+# Anthropic 协议
+-H "x-api-key: your-secret-key"
+```
+
+### Docker 运行
+
+```bash
+# 构建镜像
+docker build -t mimom .
+
+# 运行（挂载本地配置）
+docker run -d \
+  --name mimom \
+  -p 12580:12580 \
+  -v $(pwd)/config.local.yaml:/etc/mimom/config.yaml \
+  mimom
 ```
 
 ---
