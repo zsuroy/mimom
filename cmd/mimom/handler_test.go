@@ -972,6 +972,109 @@ func TestProxyHandler_AnthropicAuth(t *testing.T) {
 	}
 }
 
+func TestProxyHandler_AnthropicPathFallback(t *testing.T) {
+	var anthroHit bool
+	anthroBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		anthroHit = true
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"content":[{"type":"text","text":"ok"}]}`))
+	}))
+	defer anthroBackend.Close()
+
+	var openaiHit bool
+	openaiBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		openaiHit = true
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[]}`))
+	}))
+	defer openaiBackend.Close()
+
+	cfg := &Config{
+		Server: ServerConfig{Port: 8080, Timeout: 5},
+		Backends: map[string]BackendDef{
+			"openai":    {BaseURL: openaiBackend.URL, APIKey: "ok", Models: map[string]string{"gpt-4": "gpt-4"}},
+			"anthropic": {Type: "anthropic", BaseURL: anthroBackend.URL, APIKey: "ak", Models: map[string]string{}},
+		},
+	}
+	h := NewProxyHandler(cfg)
+
+	// 未知模型 + /v1/messages 路径 → 应路由到 Anthropic 后端
+	body := `{"model":"claude-3-5-sonnet-20241022","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status: got %d, want 200", w.Code)
+	}
+	if !anthroHit {
+		t.Error("expected anthropic backend to be hit")
+	}
+	if openaiHit {
+		t.Error("openai backend should not be hit for /v1/messages path")
+	}
+}
+
+func TestProxyHandler_SameModelDifferentPaths(t *testing.T) {
+	var anthroHit, openaiHit bool
+	anthroBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		anthroHit = true
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"content":[{"type":"text","text":"ok"}]}`))
+	}))
+	defer anthroBackend.Close()
+
+	openaiBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		openaiHit = true
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[]}`))
+	}))
+	defer openaiBackend.Close()
+
+	cfg := &Config{
+		Server: ServerConfig{Port: 8080, Timeout: 5},
+		Backends: map[string]BackendDef{
+			"openai":    {BaseURL: openaiBackend.URL, APIKey: "ok", Models: map[string]string{"mimo-v2.5-pro": "mimo-v2.5-pro"}},
+			"anthropic": {Type: "anthropic", BaseURL: anthroBackend.URL, APIKey: "ak", Models: map[string]string{"mimo-v2.5-pro": "mimo-v2.5-pro"}},
+		},
+	}
+	h := NewProxyHandler(cfg)
+
+	// 同名模型 + /v1/chat/completions → OpenAI 后端
+	body := `{"model":"mimo-v2.5-pro","messages":[{"role":"user","content":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("chat: status: %d", w.Code)
+	}
+	if !openaiHit {
+		t.Error("chat: expected openai backend")
+	}
+	if anthroHit {
+		t.Error("chat: should not hit anthropic backend")
+	}
+
+	// 同名模型 + /v1/messages → Anthropic 后端
+	anthroHit = false
+	openaiHit = false
+	req = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("messages: status: %d", w.Code)
+	}
+	if !anthroHit {
+		t.Error("messages: expected anthropic backend")
+	}
+	if openaiHit {
+		t.Error("messages: should not hit openai backend")
+	}
+}
+
 // ─── ProxyHandler 无后端 ───
 
 func TestProxyHandler_NoBackend(t *testing.T) {

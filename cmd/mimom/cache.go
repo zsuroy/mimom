@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultTTL      = 180 * time.Minute // 每条缓存 30 分钟过期
+	defaultTTL      = 180 * time.Minute // 每条缓存 3 小时过期
 	defaultMaxBytes = 64 * 1024 * 1024  // 总内存上限 64MB
 	evictInterval   = 5 * time.Minute   // 定期清理周期
 )

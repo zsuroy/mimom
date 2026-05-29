@@ -90,9 +90,20 @@ func (h *ProxyHandler) handle(w *statusRecorder, r *http.Request) {
 			Stream bool   `json:"stream"`
 		}
 		if json.Unmarshal(body, &req) == nil && req.Model != "" {
-			backend, realModel, _ = h.cfg.LookupModel(req.Model)
 			isStream = req.Stream
+			if strings.HasPrefix(r.URL.Path, "/v1/messages") {
+				// Anthropic 路径：优先在 Anthropic 后端中查找模型
+				backend, realModel, _ = h.cfg.LookupModelByType(req.Model, "anthropic")
+			}
+			if backend == nil {
+				backend, realModel, _ = h.cfg.LookupModel(req.Model)
+			}
 		}
+	}
+
+	// /v1/messages 路径兜底：任意 Anthropic 后端
+	if backend == nil && strings.HasPrefix(r.URL.Path, "/v1/messages") {
+		backend = h.cfg.FindAnthropicBackend()
 	}
 
 	if backend == nil {
