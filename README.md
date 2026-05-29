@@ -9,74 +9,7 @@
 
 **MiMom** 位于客户端与上游之间，自动缓存推理链（reasoning/thinking），在下一轮请求中注入回对应消息。支持三种协议入口，按后端类型自动选择对应协议。
 
-## 演示
-
 ![mimom dashboard demo](assets/demo.gif)
-
----
-
-## 核心特性
-
-### 多协议支持
-
-三条路由，按后端类型自动选择协议：
-
-|路由|输入协议|处理方式|
-|---|---|---|
-|`/v1/chat/completions`|Chat Completions|直通透传到 OpenAI 兼容后端|
-|`/v1/responses`|Responses API|翻译为 Chat Completions（Codex CLI 兼容）|
-|`/v1/messages`|Anthropic Messages|直通透传到 Anthropic 后端|
-
-### 推理链缓存
-
-```text
-查询 → 内存 LRU 命中 → 注入 reasoning → 转发
-       ↓ miss
-     填充空 reasoning → tool_calls 完整保留 → 转发
-```
-
-- **LRU 热缓存**：微秒级访问，自动淘汰冷数据
-- **TTL 过期**：每条缓存 3 小时后自动清理
-- **内存上限**：总缓存 64MB，超出时淘汰最久未使用条目
-- **双格式支持**：OpenAI `reasoning_content` 字段 + Anthropic `thinking` content block
-
-### 模型路由
-
-每个后端声明它服务的模型名。请求按 `model` 字段精确匹配，未命中回退到默认后端。一个代理同时服务 MiMo、DeepSeek、Claude。
-
-### 错误透传
-
-上游返回 4xx/5xx 时，代理原样透传原始状态码给下游，不做内部重试。客户端按自己的策略正常重连。
-
-### Dashboard
-
-深色主题 Web 面板，启动后访问 `http://localhost:12580/dashboard`：
-
-- **运行统计**：请求数、成功率、RPS、错误数、流式数、缓存命中率
-- **实时图表**：请求/秒折线图（2 分钟）、延迟柱状图
-- **后端状态**：已配置的后端列表、模型映射
-- **请求日志**：最近 100 条请求（方法、路径、状态码、耗时）
-- **自动刷新**：5 秒轮询
-
----
-
-## 工作原理
-
-```text
-                    首次请求                         后续请求
-客户端 ─── req (无 reasoning) ──→  代理  ──→  上游
-                                          ↑
-                                    缓存 reasoning ←─── 响应
-
-客户端 ─── req (无 reasoning) ──→  代理  ──→  req (注入 reasoning) ──→ 上游
-                                     ↑
-                              从缓存取出 reasoning
-```
-
-|场景|行为|
-|---|---|
-|**有缓存**|注入 `reasoning_content`（OpenAI）/ `thinking` block（Anthropic）到 assistant 消息|
-|**无缓存**|填充空 reasoning 字段，保留 `tool_calls` / `tool_use` 完整，协议不断裂|
 
 ---
 
@@ -87,6 +20,8 @@
 ```bash
 go build -o mimom ./cmd/mimom/
 ```
+
+或直接[下载](https://github.com/zsuroy/mimom/releases)
 
 ### 2. 配置
 
@@ -102,7 +37,7 @@ cp config.yaml config.local.yaml
 ```
 
 ```text
-MiMom 0.1.0 — MiMo API Proxy
+MiMom 0.1.1 — MiMo API Proxy
 
 config: loaded 2 backend(s)
   [mimo-openai] https://token-plan-cn.xiaomimimo.com/v1 → [mimo-v2.5-pro mimo-v2.5-omni]
@@ -170,7 +105,7 @@ export OPENAI_API_KEY=sk-xxx
 codex --model mimo-v2.5-pro "写一个 hello world"
 ```
 
-### Dashboard 访问
+### Dashboard
 
 启动后浏览器打开：
 
@@ -184,7 +119,7 @@ Dashboard 提供以下功能：
 - **请求/秒图表**：最近 2 分钟的 QPS 折线图
 - **延迟分布**：各后端响应时间柱状图
 - **后端状态**：在线状态、模型映射关系
-- **请求日志**：最近 100 条请求详情，支持筛选
+- **请求日志**：最近 100 条请求详情
 
 ### 鉴权配置
 
@@ -217,6 +152,21 @@ docker run -d \
   mimom
 ```
 
+### systemd 部署
+
+```ini
+[Unit]
+Description=MiMom API Proxy
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/mimom -config /etc/mimom/config.yaml
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ---
 
 ## 配置参考
@@ -231,11 +181,12 @@ backends:
   # 每个后端包含：type（可选）、base_url、api_key、models
   # type 默认 "openai"，设为 "anthropic" 后使用 x-api-key 鉴权
   # models 是 client_name → backend_name 的映射
+  # 支持同名模型跨后端配置，按请求路径自动区分
   mimo-openai:
     base_url: "https://token-plan-cn.xiaomimimo.com/v1"
     api_key: "sk-xxx"
     models:
-      mimo-v2.5-pro: "mimo-v2.5-pro"    # 客户端用 mimo-v2.5-pro，转发到 mimo-v2.5-pro
+      mimo-v2.5-pro: "mimo-v2.5-pro"
       mimo-v2.5-omni: "mimo-v2.5-omni"
 
   mimo-anthropic:
@@ -243,11 +194,65 @@ backends:
     base_url: "https://token-plan-cn.xiaomimimo.com/anthropic/v1"
     api_key: "sk-ant-xxx"
     models:
-      claude-sonnet: "mimo-v2.5-pro"
-      claude-opus: "mimo-v2.5-omni"
+      mimo-v2.5-pro: "mimo-v2.5-pro"    # 同名模型，/v1/messages 自动路由到此后端
 ```
 
 `base_url` 是完整路径前缀，请求路径 `/v1` 之后的部分会拼接到后面。
+
+---
+
+## 核心特性
+
+### 多协议支持
+
+三条路由，按后端类型自动选择协议：
+
+|路由|输入协议|处理方式|
+|---|---|---|
+|`/v1/chat/completions`|Chat Completions|直通透传到 OpenAI 兼容后端|
+|`/v1/responses`|Responses API|翻译为 Chat Completions（Codex CLI 兼容）|
+|`/v1/messages`|Anthropic Messages|直通透传到 Anthropic 后端|
+
+### 推理链缓存
+
+```text
+查询 → 内存 LRU 命中 → 注入 reasoning → 转发
+       ↓ miss
+     填充空 reasoning → tool_calls 完整保留 → 转发
+```
+
+- **LRU 热缓存**：微秒级访问，自动淘汰冷数据
+- **TTL 过期**：每条缓存 3 小时后自动清理
+- **内存上限**：总缓存 64MB，超出时淘汰最久未使用条目
+- **双格式支持**：OpenAI `reasoning_content` 字段 + Anthropic `thinking` content block
+
+### 模型路由
+
+每个后端声明它服务的模型名。请求按 `model` 字段精确匹配，未命中回退到默认后端。`/v1/messages` 路径优先匹配 Anthropic 后端，支持同名模型跨后端配置。
+
+### 错误透传
+
+上游返回 4xx/5xx 时，代理原样透传原始状态码给下游，不做内部重试。客户端按自己的策略正常重连。
+
+---
+
+## 工作原理
+
+```text
+                    首次请求                         后续请求
+客户端 ─── req (无 reasoning) ──→  代理  ──→  上游
+                                          ↑
+                                    缓存 reasoning ←─── 响应
+
+客户端 ─── req (无 reasoning) ──→  代理  ──→  req (注入 reasoning) ──→ 上游
+                                     ↑
+                              从缓存取出 reasoning
+```
+
+|场景|行为|
+|---|---|
+|**有缓存**|注入 `reasoning_content`（OpenAI）/ `thinking` block（Anthropic）到 assistant 消息|
+|**无缓存**|填充空 reasoning 字段，保留 `tool_calls` / `tool_use` 完整，协议不断裂|
 
 ---
 
@@ -397,6 +402,9 @@ mimom/
 # 运行全部单元测试
 go test ./cmd/mimom/ -v
 
+# 运行集成测试（打真实后端，消耗 token）
+go test -tags integration -v ./cmd/mimom/
+
 # 仅运行 Responses API 测试
 go test ./cmd/mimom/ -run TestResponses -v
 
@@ -405,39 +413,6 @@ go test ./cmd/mimom/ -run TestReasoning -v
 
 # 仅运行统计与 Dashboard 测试
 go test ./cmd/mimom/ -run TestStats -v
-```
-
----
-
-## 部署
-
-### Docker
-
-```dockerfile
-FROM golang:1.26-alpine AS build
-WORKDIR /app
-COPY . .
-RUN go build -o mimom ./cmd/mimom/
-
-FROM alpine:latest
-COPY --from=build /app/mimom /usr/local/bin/
-COPY config.yaml /etc/mimom/config.yaml
-CMD ["mimom", "-config", "/etc/mimom/config.yaml"]
-```
-
-### systemd
-
-```ini
-[Unit]
-Description=mimom API proxy
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/mimom -config /etc/mimom/config.yaml
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
 ```
 
 ---
