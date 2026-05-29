@@ -232,7 +232,7 @@ backends:
   # type 默认 "openai"，设为 "anthropic" 后使用 x-api-key 鉴权
   # models 是 client_name → backend_name 的映射
   mimo-openai:
-    base_url: "https://api.xiaomimimo.com/v1"
+    base_url: "https://token-plan-cn.xiaomimimo.com/v1"
     api_key: "sk-xxx"
     models:
       mimo-v2.5-pro: "mimo-v2.5-pro"    # 客户端用 mimo-v2.5-pro，转发到 mimo-v2.5-pro
@@ -240,11 +240,11 @@ backends:
 
   mimo-anthropic:
     type: "anthropic"
-    base_url: "https://api.anthropic.com/v1"
+    base_url: "https://token-plan-cn.xiaomimimo.com/anthropic/v1"
     api_key: "sk-ant-xxx"
     models:
-      claude-sonnet: "claude-sonnet-4-20250514"
-      claude-opus: "claude-opus-4-20250514"
+      claude-sonnet: "mimo-v2.5-pro"
+      claude-opus: "mimo-v2.5-omni"
 ```
 
 `base_url` 是完整路径前缀，请求路径 `/v1` 之后的部分会拼接到后面。
