@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.2] - 2026-05-29
+
+### Added
+
+- Dashboard UI 全面改版：深色主题、Chart.js 实时图表（请求/秒折线图、延迟柱状图）、GitHub 链接
+- 统计指标增强：平均/最大延迟、RPS、按秒聚合时序数据（120 点滑动窗口）
+- 集成测试：`-tags integration` 打真实后端验证代理行为（模型路由、reasoning 缓存回填、流式转发等）
+- Anthropic 路径感知路由：`/v1/messages` 优先匹配 Anthropic 后端，支持同名模型跨后端配置
+- `LookupModelByType()` 按后端类型查找模型
+- `FindAnthropicBackend()` 查找 Anthropic 后端
+- Dockerfile 多阶段构建
+
+### Fixed
+
+- Claude 客户端请求 `/v1/messages` 时因模型名未匹配而 404 的问题
+
+### Changed
+
+- `maxRecentLogs` 从 50 提升到 100
+- 轮询间隔从 5 秒缩短到 3 秒
+- `config.yaml` 恢复为模板（去除真实 API Key）
+
 ## [0.1.0] - 2026-05-28
 
 ### Added
@@ -12,7 +34,7 @@
 - 请求日志：方法、路径、状态码、耗时
 - 启动 banner：展示已加载的后端和模型
 - CLI 参数：`-config`、`-version`
-- 缓存 TTL（30 分钟）+ LRU 淘汰 + 64MB 内存上限
+- 缓存 TTL（3 小时）+ LRU 淘汰 + 64MB 内存上限
 - 可选代理鉴权（`server.api_key`）
 - 配置文件 `base_url` 自动补全 `/v1`
 - Docker 和 systemd 部署示例

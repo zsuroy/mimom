@@ -40,10 +40,33 @@ func (c *Config) LookupModel(clientModel string) (*BackendDef, string, bool) {
 	return nil, "", false
 }
 
+// LookupModelByType 在指定类型的后端中查找模型。
+func (c *Config) LookupModelByType(clientModel, backendType string) (*BackendDef, string, bool) {
+	for _, b := range c.Backends {
+		if b.Type != backendType {
+			continue
+		}
+		if realName, ok := b.Models[clientModel]; ok {
+			return &b, realName, true
+		}
+	}
+	return nil, "", false
+}
+
 // DefaultBackend 返回第一个后端。
 func (c *Config) DefaultBackend() *BackendDef {
 	for _, b := range c.Backends {
 		return &b
+	}
+	return nil
+}
+
+// FindAnthropicBackend 返回第一个 Anthropic 类型后端。
+func (c *Config) FindAnthropicBackend() *BackendDef {
+	for _, b := range c.Backends {
+		if b.IsAnthropic() {
+			return &b
+		}
 	}
 	return nil
 }
