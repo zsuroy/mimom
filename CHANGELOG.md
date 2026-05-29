@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.3] - 2026-05-29
+
+### Fixed
+
+- Responses API 转换全面重写，修复 Codex CLI 兼容性问题
+  - 工具格式：Responses API 扁平格式 → Chat Completions 包装格式（`function` 字段）
+  - 过滤非 function 工具类型（`custom`、`tool_search`）避免 MiMo 400 错误
+  - `developer` 角色映射为 `system`（Codex 使用 developer，MiMo 不支持）
+  - 数组内容提取文本，跳过 `thinking` blocks 避免 MiMo 拒绝
+  - assistant 消息 `tool_calls` 转换为 Chat Completions 格式
+  - 带 `tool_calls` 的 assistant 消息补充 `content: ""`（MiMo 要求字段存在）
+  - 流式响应累积 content 文本写入 `output_item.done`，处理 `finish_reason: "stop"`
+  - 移除多余 SSE 事件（`content_part.added`、`function_call_arguments.done`）
+  - 添加 `data: [DONE]` 终止符
+- 非流式 Responses API：支持 `tool_calls` 输出项，条件输出 message 项
+
 ## [0.1.2] - 2026-05-29
 
 ### Added

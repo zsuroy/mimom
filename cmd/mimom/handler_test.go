@@ -391,11 +391,11 @@ func TestResponsesHandler_InstructionsToSystem(t *testing.T) {
 		if len(req.Messages) == 0 {
 			t.Fatal("no messages")
 		}
-		if req.Messages[0].Role != "system" {
-			t.Errorf("first message role: got %q, want %q", req.Messages[0].Role, "system")
+		if req.Messages[0]["role"] != "system" {
+			t.Errorf("first message role: got %q, want %q", req.Messages[0]["role"], "system")
 		}
-		if req.Messages[0].Content != "Be concise." {
-			t.Errorf("system content: got %q", req.Messages[0].Content)
+		if req.Messages[0]["content"] != "Be concise." {
+			t.Errorf("system content: got %q", req.Messages[0]["content"])
 		}
 
 		w.Header().Set("Content-Type", "application/json")
